@@ -1,0 +1,161 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "form",
+  "steps": [
+    {
+      "title": "Introduction",
+      "description": "form 表单源码解析，主要包含：\n1. 表单项收集\n2. 表单项校验\n"
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "我们先看一下 demo1:\n- 校验所有配置了 rules 的表单项目，我们发现其是通过 form 实例 进行触发校验的，那么说明表单即Form.vue 里面一定有一个 validate API，即 validate(callback)\n\n```js\nsubmitForm(formName) {\n    this.$refs[formName].validate((valid， invalidFields) => {\n        if (valid) {\n        alert('submit!');\n        } else {\n        console.log('error submit!!');\n        return false;\n        }\n    });\n},\n```",
+      "line": 109
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "核心实现：\n\nfor 循环便利所有的 fields 即表单项，执行每一个表单项的校验，这样的话，我们需要看一下这个 this.fields 是怎么回事（即怎么把表单项目给收集起来的）",
+      "line": 132
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "看这边，Form.vue 在初始化的时候，注册了一个 EventBus.$on，addField 其实就可以理解成向一个队列数组里面新增表单项（表单项的实例）\n\n这个 this.$on 实际上是 Vue1.x 自带的一个 API，用于跨组件通信，后面在 Vue2.x 中被移除了，Element-UI 自己实现了这个 API，具体代码可以参考 mixins/emitter.js。\n\n本质上就是一个组件，向上级组件分发一个事件，然后上级组件挨个向上传递，如果命中了对应的组件，则执行对应的 callback 即可\n\n我们搜一下：el.form.addField 这个关键字（有监听的地方，就一定有分发的地方）",
+      "line": 77
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "- 分发的地方在这边，this.prop 意思就是这个form-item 一定需要一个 Id 做唯一标识。\n\n- 可以看到:\n\n```js\nthis.dispatch(\n    EleForm, // componentName 目标组件的名称，这边意思是这个事件的接受者是 EleForm 即表单容器层， \n    el.form.addField // 事件名\n    [this] // 参数，即当前表单项的实例，即这个表单项自身\n)\n```\n\n意思就是说当 form-item mounted 的时候，会将自身向外分发，然后 EleForm 进行接收，接收到之后放到队列数组中，这样就能实现在 EleForm 中执行 validate，对都有的表单项进行遍历 validate",
+      "line": 307
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "可以看到，每个 form-item 都是有其自身的 validate method",
+      "line": 194
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "表单校验的核心实现是通过 async-validator 来做的。\n\n更多的内容，可以参考如下两篇非常不错的文章：\n\n1. https://juejin.cn/post/7258966810350174263\n2. https://juejin.cn/post/7249299811497066551",
+      "line": 212
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "- 这个 trigger 就是文档里面描述的：change/blue等等了",
+      "line": 194
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "根据 trigger 进行过滤，如果trigger 是空的话，则默认返回所有的 rules",
+      "line": 196
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "这边的 trigger 传入的就是空值，因为 对应的调用 API是： this.$refs.form.validate(callback)，即手动触发校验，因此没有对应的 trigger",
+      "line": 133
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "https://github.com/yiminghe/async-validator",
+      "line": 217
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "校验如果通用，其实 validateMessage 就是空，反之如果 message 有内容，就是校验未通过，即 valid=false",
+      "line": 221
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "对应了这里",
+      "line": 135
+    },
+    {
+      "file": "packages/form/src/form.vue",
+      "description": "收集非法的表单项，最后统一通过 this.$refs.form.validate(callback) 中的 callback 传给外边\n\n即\n\n```js\nthis.$refs.form.validate(（valid, invalidFields) => {\n    // do something\n})\n```",
+      "line": 137
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "刚才说的都是 JS API 层面的，表单校验的另外一个核心内容是 UI 层需要展示校验的结果，其实核心也在这边 validateMessage",
+      "line": 219,
+      "selection": {
+        "start": {
+          "line": 1,
+          "character": 57
+        },
+        "end": {
+          "line": 1,
+          "character": 72
+        }
+      }
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "- 这边，就是那个常见的 表单项 底部飘红色文字的实现了（即 手机号不合法、请输入手机号等等文案）\n\n- 这时候，你可能比较好奇，我们讲了这么多，上面的校验红色文字的触发时机是点击：提交按钮的时候触发的。\n\n比较常见的是，边输入的时候边校验，即 trigger 是 change ，但是看form-item 的代码里面没有这部分的实现，而且这个是每个组件相关的，比如 input/select，这个是怎么实现的呢？\n\n- 那我们找一下 input 的源码看下吧\n",
+      "line": 21
+    },
+    {
+      "file": "packages/input/src/input.vue",
+      "description": "我们找到input组件的 blur 和 change 的处理函数去看一下",
+      "line": 39
+    },
+    {
+      "file": "packages/input/src/input.vue",
+      "description": "可以看到 blur 的实现里面，也有类似的代码： this.dispatch('ElFormItem', 'el.form.blur', [this.value]);",
+      "line": 305,
+      "selection": {
+        "start": {
+          "line": 1,
+          "character": 55
+        },
+        "end": {
+          "line": 1,
+          "character": 68
+        }
+      }
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "可以看到，form-item 这边有注册对应的监听器 & callback",
+      "line": 297
+    },
+    {
+      "file": "packages/form/src/form-item.vue",
+      "description": "这个就可以看到，会执行该表单项的validate('blur') 即 tirgger = blur",
+      "line": 280
+    },
+    {
+      "file": "packages/input/src/input.vue",
+      "description": "那么我们继续来看下 onChange，很奇怪，发现这边貌似没有类似 blur 里面的 dispatch 事件了，咋回事呢。那我们搜一下 dispatch 吧",
+      "line": 372,
+      "selection": {
+        "start": {
+          "line": 1,
+          "character": 69
+        },
+        "end": {
+          "line": 1,
+          "character": 78
+        }
+      }
+    },
+    {
+      "file": "packages/input/src/input.vue",
+      "description": "发现change事件对应的分发动作，是通过 watch value 实现的，为何这样？：\n\n猜测一下，应该是：change 其实本质上就是质变化的时候触发，input/change 动作可能的都会触发值的变化，而且还有可能就是外边传入的值的变化，也希望能够触发表单校验\n\n这样的话，多种场景，貌似 watch('value') => dispatch('change') 能够实现收敛的作用了",
+      "line": 266
+    },
+    {
+      "file": "packages/select/src/select.vue",
+      "description": "同理，我们看一下select 组件，发现里面也会有类似的逻辑。\n\n\n这样也就意味着另外一件事：如果你想实现一个自定义的element-ui 的form-item 控件（不是基于element-ui input/select 二次封装的，而是0-1开发的，那么建议最好是看一下 element-ui 的form-item 和 input的实现，增加一下 dispatch 这些逻辑，这样的话，你才能够触发表单trigger相关的校验）\n\n\n但是整个element-ui的form 组件，有一个奇葩的组件，element-ui 官网默认是没有实现这个dispatch，及表单校验的，不知道你看官网文档的时候有没有注意到？\n\n---\n奇葩组件就是 Upload 组件 https://element.eleme.cn/#/zh-CN/component/upload",
+      "line": 366
+    },
+    {
+      "file": "packages/upload/src/index.vue",
+      "description": "注意哈：\n\nupload 组件的v-model 绑定的props不是 props.value而是 props.fileList",
+      "line": 139
+    },
+    {
+      "file": "packages/upload/src/index.vue",
+      "description": "如果你去看内部封装的 upload 相关组件，会发现内部的upload组件fork 了一份 element-ui 的upload，在这些 handleSuccess/handleRemove 的地方(及有fileList变化的地方） 增加了 `this.dispatch('ElFormItem', 'el.form.change', file)` 这类代码用于触发表单校验（这个还有一个原因是element-ui有一些地方无法满足内部需求，中大型公司内部会fork一下element-ui 进行开发）\n\n\n- 另外一个比较有意思的疑问，可以思考下：\n   - 对于中小型公司/团队，有没有办法在不fork element-ui的情况，对element-ui 的upload控件的某个method进行hack呢？",
+      "line": 189
+    }
+  ],
+  "ref": "290e68ea6aa6c56b7d83182b650e3be4f77ff1b0"
+}
